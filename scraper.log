@@ -507,3 +507,13 @@ NameError: name 'coll' is not defined
 2025-04-22 12:37:49,772 - INFO - Process scraper_nintendo.py started with PID 157938
 2025-04-22 12:37:50,931 - INFO - Waiting for fetching Nintendo games...
 2025-04-22 12:37:52,013 - INFO - Fetched 1000 games in Nintendo.
+2025-04-22 13:17:13,613 - INFO - ******************** Started Scheduler... ********************
+2025-04-22 13:17:13,954 - INFO - ========== Starting scraper_nintendo.py... ==========
+2025-04-22 13:17:13,958 - INFO - Process scraper_nintendo.py started with PID 159690
+2025-04-22 13:17:14,313 - INFO - Waiting for fetching Nintendo games...
+2025-04-22 13:17:15,188 - INFO - Fetched 1000 games in Nintendo.
+2025-04-22 13:17:39,066 - INFO - ******************** Started Scheduler... ********************
+2025-04-22 13:17:39,465 - INFO - ========== Starting scraper_nintendo.py... ==========
+2025-04-22 13:17:39,468 - INFO - Process scraper_nintendo.py started with PID 160809
+2025-04-22 13:17:39,836 - INFO - Waiting for fetching Nintendo games...
+2025-04-22 13:17:40,811 - INFO - Fetched 1000 games in Nintendo.
