@@ -461,7 +461,8 @@ app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
 def is_scheduler_running():
     for proc in psutil.process_iter(attrs=['cmdline']):
         try:
-            if proc.info['cmdline'] and "scheduler.py" in proc.info['cmdline']:
+            cmd = proc.info.get('cmdline') or []
+            if any("scheduler.py" in part for part in cmd):
                 return True
         except (psutil.NoSuchProcess, KeyError):
             continue
@@ -500,13 +501,13 @@ def stop_scheduler():
     if isinstance(auth_result, tuple):
         return auth_result
     if not is_scheduler_running():
-        return jsonify({"msg": "Nothing works in server now."}), 400
+        return jsonify({"msg": "Scheduler not running."}), 404
     try:
         scheduler_stopped = False
         for proc in psutil.process_iter(attrs=['pid', 'cmdline']):
             try:
-                cmdline = proc.info['cmdline']
-                if cmdline and "scheduler.py" in cmdline:
+                cmdline = proc.info.get('cmdline') or []
+                if any("scheduler.py" in part for part in cmdline):
                     # Kill the scheduler process
                     proc.terminate()
                     proc.wait(timeout=5)
