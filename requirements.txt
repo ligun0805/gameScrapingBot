@@ -1,0 +1,14 @@
+beautifulsoup4
+requests
+pymongo
+selenium
+chromedriver
+schedule
+flask
+flask-pymongo
+Flask-JWT-Extended
+psutil
+flask_cors
+env
+flask-swagger
+flask-swagger-ui
