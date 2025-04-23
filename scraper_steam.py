@@ -33,7 +33,7 @@ def fetch_steam_apps(session):
         print(f"Failed to fetch app list : {e}")
         return []
 
-def fetch_steam_game_by_title(title: str) -> dict | None:
+def fetch_steam_game_by_title(title: str, region: str = "ru") -> dict | None:
     while True:
         try:
             proxy = choice(PROXIES)  # Randomly select a proxy for each request
@@ -43,7 +43,7 @@ def fetch_steam_game_by_title(title: str) -> dict | None:
             for app in apps:
                 if app['name'] == title:
                     app_id = app['appid']
-                    game_data = fetch_game_details(app_id, session)
+                    game_data = fetch_game_details(app_id, session, region)
     
                     if "error" not in game_data:
                         db = get_mongo_db()
@@ -54,12 +54,12 @@ def fetch_steam_game_by_title(title: str) -> dict | None:
 
     return None
 
-def fetch_game_details(app_id, session):
+def fetch_game_details(app_id, session, region: str = "ru"):
     base_url = "https://store.steampowered.com/api/appdetails"
     try:
         response = session.get(
             base_url,
-            params={"appids": app_id, "l": "ru"},  # получаем всё на русском
+            params={"appids": app_id, "cc": region, "l": region},  
             timeout=15
         )
         response.raise_for_status()
@@ -86,7 +86,7 @@ def fetch_game_details(app_id, session):
             "platforms": ", ".join(k for k, v in game_info.get("platforms", {}).items() if v),
             "release_date": game_info.get("release_date", {}).get("date", "N/A"),
             "prices": prices,
-            "url": f"https://store.steampowered.com/app/{app_id}/?l=ru"
+            "url": f"https://store.steampowered.com/app/{app_id}/?cc={region}&l={region}"
         }
     except requests.RequestException as e:
         return {"error": str(e)}

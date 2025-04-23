@@ -115,6 +115,7 @@ def process_xbox_game(game):
             "platforms": platforms,
             "release_date": release_date,
             "prices": prices,
+            "url": details_link
         }
     except Exception as e:
         print(f"Error processing game details: {e}")

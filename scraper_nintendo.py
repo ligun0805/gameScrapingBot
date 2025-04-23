@@ -268,12 +268,13 @@ def process_nintendo_game(game: dict, proxy) -> dict | None:
         if release_date != 'N/A':
             release_date = datetime.fromisoformat(release_date.replace("Z", "")).strftime('%B %d, %Y')
             
-        url = game.get('url', None)
+        raw_path = game.get('url', None)
         
-        if url:
-            url = 'https://www.nintendo.com' + url
+        if raw_path:
+            url = 'https://www.nintendo.com' + raw_path
             screenshots = fetch_screenshots(url, proxy)
         else:
+            url = None
             screenshots = []
             
         full_description = fetch_full_description(url, proxy)
@@ -301,7 +302,8 @@ def process_nintendo_game(game: dict, proxy) -> dict | None:
             "publisher": publisher,
             "platforms": platforms,
             "release_date": release_date,
-            "prices": prices
+            "prices": prices,
+            "url": url
         }
         print(f"Nintendo game: {title}")
         return game_data

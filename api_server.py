@@ -158,7 +158,8 @@ swagger_config = {
                                     "items": {
                                         "type": "object"
                                     }
-                                }
+                                },
+                                "url": { "type": "string", "description": "Direct link to the game" }
                             }
                         }
                     },
@@ -298,7 +299,14 @@ swagger_config = {
                 ],
                 "responses": {
                     "200": {
-                        "description": "Game details retrieved successfully."
+                        "description": "Game details retrieved successfully.",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "url": { "type": "string", "description": "Direct link to the game" }
+                                },
+                            "additionalProperties": True
+                        },
                     },
                     "400": {
                         "description": "Invalid service."
@@ -446,8 +454,8 @@ def swagger_json():
     return jsonify(swagger_config)
 
 # Swagger UI blueprint
-SWAGGER_URL = '/swagger'
-API_URL = '/swagger.json'
+SWAGGER_URL= '/swagger'
+API_URL= '/swagger.json'
 
 swaggerui_blueprint = get_swaggerui_blueprint(
     SWAGGER_URL,
@@ -675,7 +683,8 @@ def update_game():
     
     try:
         if service == 'steam':
-            game = fetch_steam_game_by_title(title)
+            region = request.args.get('region', 'ru')
+            game = fetch_steam_game_by_title(title, region)
         elif service == 'xbox':
             game = fetch_xbox_game_by_title(title)
         elif service == 'playstation':

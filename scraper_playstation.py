@@ -145,6 +145,7 @@ def process_playstation_game(game, proxy_pool):
                 "release_date": get_text_safe(soup.find(attrs={'data-qa': 'gameInfo#releaseInformation#releaseDate-value'})),
                 "categories": [span.text.strip() for span in soup.find(attrs={'data-qa': 'gameInfo#releaseInformation#genre-value'}).find_all('span')] if soup.find(attrs={'data-qa': 'gameInfo#releaseInformation#genre-value'}) else [],
                 "prices": fetch_game_prices(game, proxy_pool),
+                "url": url,
             }
             log_info(f"Playstation : {game_details['title']}")
             return game_details
