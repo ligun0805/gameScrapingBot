@@ -1,7 +1,4 @@
-import time
-import os
-import platform
-import subprocess
+import time, os, platform, subprocess, sys
 from utils import log_info
 
 # Define the scraper order and their respective wait intervals (in seconds)
@@ -15,17 +12,19 @@ SCRAPER_ORDER = [
 def run_scraper(scraper, interval):
     try:
         log_info(f"========== Starting {scraper}... ==========")
+        python_exec = sys.executable
+        script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), scraper)
 
         if platform.system() == "Windows":
             # On Windows, use CREATE_NEW_PROCESS_GROUP
             proc = subprocess.Popen(
-                ["python", scraper],
+                [python_exec, script_path],
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
             )
         else:
             # On Unix-based systems, use os.setsid()
             proc = subprocess.Popen(
-                ["python3", scraper],  # Use "python3" for Unix-based systems
+                [python_exec, script_path],  # Use "python3" for Unix-based systems
                 preexec_fn=os.setsid
             )
 

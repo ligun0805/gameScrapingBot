@@ -1,10 +1,8 @@
-import os
-import logging
-import time
-import pickle
-import tempfile
+import os, logging, time
 from bs4 import BeautifulSoup
 from pymongo import MongoClient
+import requests
+from requests.adapters import HTTPAdapter
 from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -129,45 +127,72 @@ regions_nintendo = [
 # Database configuration
 def get_mongo_db():
     mongo_uri = os.getenv("MONGO_URI")
+    if not mongo_uri:
+        raise RuntimeError("MONGO_URI is not set")
     client = MongoClient(mongo_uri)
-    db = client["test"]
+    try:
+        db = client.get_default_database()
+    except:
+        db = client["test"]
     return db
 
 def update_mongo(db, collection_name):
-    db[collection_name].drop()
-    db[f"{collection_name}_tmp"].rename(collection_name)
+    """Atomically rename tmp → main collection without dropping first."""
+    db.client.admin.command(
+        "renameCollection",
+        f"{db.name}.{collection_name}_tmp",
+        to=f"{db.name}.{collection_name}",
+        dropTarget=True
+    )
 
 def save_to_mongo(db, collection_name, data):
-    collection = db[f"{collection_name}_tmp"]
-    # collection.insert_one(data)
+    tmp_coll = db[f"{collection_name}_tmp"]
     title = data.get("title")
-    if title:
-        collection = db[collection_name]
-        existing_data = collection.find_one({"title" : title})
-        if existing_data:
-            collection.update_one(
-                {"_id": existing_data["_id"]},
-                {"$set": data}
-            )
-        else:
-            collection.insert_one(data)
+    if not title:
+        return
+    # Upsert by title in tmp collection
+    tmp_coll.update_one(
+        {"title": title},
+        {"$set": data},
+        upsert=True
+    )
 
 def get_selenium_browser(retries=3):
     options = Options()
     options.add_argument('--no-sandbox')  # Critical for Linux/Docker
     options.add_argument('--disable-dev-shm-usage')  # For limited shared memory
-    options.add_argument('--headless=new')  # If running headless
+    options.add_argument('--headless')  # If running headless
     options.add_argument('--disable-gpu')  # Sometimes needed
+    chrome_bin = os.getenv("chrome_path")
+    if chrome_bin:
+        options.binary_location = chrome_bin
     
     
     # Adjust path if needed
     # options.binary_location = chrome_path
-    service = Service(
-        executable_path=ChromeDriverManager('135').install()
-    )
+    driver_path = os.getenv("chromedriver_path")
+    if not driver_path:
+        from webdriver_manager.chrome import ChromeDriverManager
+        driver_path = ChromeDriverManager().install()
+    service = Service(executable_path=driver_path)
     driver = webdriver.Chrome(service=service, options=options)
     
     return driver
+
+def create_session(proxy=None, timeout=(5,15)):
+    import functools, requests
+    from requests.adapters import HTTPAdapter
+
+    session = requests.Session()
+    adapter = HTTPAdapter(max_retries=3)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    session.request = functools.partial(session.request, timeout=timeout)
+
+    if proxy:
+        session.proxies = {"http": proxy, "https": proxy}
+    return session
+
 
 def click_loadmore_btn(browser, btn_dom):
     count = 0
