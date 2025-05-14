@@ -697,9 +697,21 @@ def update_game():
     
     if not game:
         return jsonify({"msg": "Game not found"}), 404
-    
+
     game['service'] = service
     game['region'] = region
+
+
+    collection_name = f"{service}_games"
+    try:
+        mongo.db[collection_name].update_one(
+            {"title": game.get("title")},
+            {"$set": game},
+            upsert=True
+        )
+    except Exception as e:
+        return jsonify({"msg": f"Mongo update failed: {e}"}), 500
+
     return jsonify(game), 200
 
 @app.route('/steam/invite', methods=['POST'])
