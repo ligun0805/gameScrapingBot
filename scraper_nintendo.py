@@ -4,44 +4,44 @@ import multiprocessing
 import itertools
 import json
 import functools
+import os
 from random import choice
 from typing import List
 from datetime import datetime
 from bs4 import BeautifulSoup, Tag
 from requests.adapters import HTTPAdapter
 from concurrent.futures import ThreadPoolExecutor
-from utils import log_info, get_mongo_db, save_to_mongo, update_mongo, regions_nintendo
+from utils import log_info, get_mongo_db, save_to_mongo, update_mongo, regions_nintendo, create_session
 
 n_processes = 50
 
-API_URL = "https://searching.nintendo-europe.com/en/select?q=*&fq=type%3AGAME%20AND%20((playable_on_txt%3A%22HAC%22))%20AND%20sorting_title%3A*%20AND%20*%3A*&sort=score%20desc%2C%20date_from%20desc&start=0&rows=100000&wt=json&bf=linear(ms(priority%2CNOW%2FHOUR)%2C3.19e-11%2C0)&bq=!deprioritise_b%3Atrue%5E999" # API endpoint
+API_URL = "https://searching.nintendo-europe.com/en/select"
 
-# Load proxies from file
-with open("proxies.txt") as f:
+# Load proxies from file (compute path relative to this script)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+with open(os.path.join(BASE_DIR, "proxies.txt"), "r") as f:
     PROXIES = [line.strip() for line in f if line.strip()]
     
 chunk_size = (len(PROXIES) + n_processes - 1) // n_processes
 proxy_chunks = [PROXIES[i * chunk_size:(i + 1) * chunk_size] for i in range(n_processes)]
 
-# Set up a requests session with proxy and retry logic
-def create_session(proxy=None, timeout=(5, 10)):
-    
-    session = requests.Session()
-
-    if proxy:
-        session.proxies = {"http": proxy, "https": proxy}
-
-    session.mount('https://', HTTPAdapter(max_retries=3))
-    session.request = functools.partial(session.request, timeout=timeout)
-    return session
-
 def fetch_games():
     from requests.exceptions import Timeout, RequestException
     try:
-        session = create_session()
-        response = session.get(API_URL)
-        response.raise_for_status()
-        return response.json()['response']['docs']
+        session = create_session(None)
+        params = {
+            "q": "*",
+            "fq": "type:GAME AND (playable_on_txt:\"HAC\")",
+            "sort": "score desc,date_from desc",
+            "start": 0,
+            "rows": 100000,
+            "wt": "json",
+            "bf": "linear(ms(priority,NOW/HOUR),3.19e-11,0)",
+            "bq": "!deprioritise_b:true^999"
+        }
+        resp = session.get(API_URL, params=params, timeout=15)
+        resp.raise_for_status()
+        return resp.json()['response']['docs']
     except Timeout:
         print("Nintendo : Timeout fetching games")
         return []
@@ -54,10 +54,19 @@ def fetch_nintendo_game_by_title(title: str) -> dict | None:
     try:
         proxy = choice(PROXIES)
         session = create_session(proxy)
-        api = f'https://searching.nintendo-europe.com/en/select?q={title}&fq=type%3AGAME%20AND%20sorting_title%3A*%20AND%20*%3A*&sort=deprioritise_b%20asc%2C%20popularity%20asc&start=0&rows=24&wt=json&bf=linear(ms(priority%2CNOW%2FHOUR)%2C3.19e-11%2C0)&bq=!deprioritise_b%3Atrue%5E999'
-        response = session.get(api)
-        response.raise_for_status()
-        data = response.json()['response']['docs']
+        params = {
+            "q": title,
+            "fq": "type:GAME AND sorting_title:*",
+            "sort": "deprioritise_b asc,popularity asc",
+            "start": 0,
+            "rows": 24,
+            "wt": "json",
+            "bf": "linear(ms(priority,NOW/HOUR),3.19e-11,0)",
+            "bq": "!deprioritise_b:true^999"
+        }
+        resp = session.get(API_URL, params=params, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()['response']['docs']
         if data and len(data) > 0:
             for game in data:
                 if game['title'] == title:
@@ -78,11 +87,8 @@ def fetch_nintendo_game_by_title(title: str) -> dict | None:
 
 def fetch_screenshots(url: str, proxy) -> list:
     session = create_session(proxy)
-    resp = session.get(url)
-    
-    if resp.status_code != 200:
-        print(f"Error fetching screenshots: {resp.status_code}")
-        return []
+    resp = session.get(url, timeout=15)
+    resp.raise_for_status()
     
     soup = BeautifulSoup(resp.text, 'html.parser')
     gallery = soup.find('section', id='Gallery')
@@ -102,11 +108,8 @@ def fetch_screenshots(url: str, proxy) -> list:
 
 def fetch_full_description(url: str, proxy) -> str:
     session = create_session(proxy)
-    resp = session.get(url)
-    
-    if resp.status_code != 200:
-        print(f"Error fetching full description: {resp.status_code}")
-        return 'N/A'
+    resp = session.get(url, timeout=15)
+    resp.raise_for_status()
     
     soup = BeautifulSoup(resp.text, 'html.parser')
     overview = soup.find('section', id='Overview')
@@ -134,7 +137,8 @@ def fetch_slug(title: str, proxy) -> str | None:
         }
         payload = {"requests":[{"indexName":"store_game_en_us","query":title,"params":"filters=&hitsPerPage=10&analytics=true&facetingAfterDistinct=true&clickAnalytics=true&highlightPreTag=%5E*%5E%5E&highlightPostTag=%5E*&attributesToHighlight=%5B%22description%22%5D&facets=%5B%22*%22%5D&maxValuesPerFacet=100"}]}
         
-        resp = session.post(api, headers=headers, json=payload)
+        resp = session.post(api, headers=headers, json=payload, timeout=15)
+        resp.raise_for_status()
         data = resp.json()
         
         if data['results'][0]['nbHits'] == 0:
@@ -152,7 +156,8 @@ def fetch_build_id(slug: str, proxy) -> str | None:
         session = create_session(proxy)
         
         api = f'https://www.nintendo.com/us/store/products/{slug}/'
-        resp = session.get(api)
+        resp = session.get(api, timeout=15)
+        resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
         data = soup.find('script', id='__NEXT_DATA__')
         
@@ -169,7 +174,8 @@ def fetch_america_price(region: str, slug: str, build_id: str, proxy) -> dict:
         session = create_session(proxy)
         
         api = f'https://www.nintendo.com/_next/data/{build_id}/{region}/store/products/{slug}.json?slug={slug}'
-        resp = session.get(api)
+        resp = session.get(api, timeout=15)
+        resp.raise_for_status()
         data = resp.json()
     except Exception as e:
         print(f"Error fetching America price: {e}")
@@ -189,7 +195,8 @@ def fetch_asia_price(region: str, nsuid: str, proxy) -> dict:
     try:
         session = create_session(proxy)
         api = f'https://ec.nintendo.com/api/{region.upper()}/en/guest_prices?ns_uids={nsuid}'
-        resp = session.get(api)
+        resp = session.get(api, timeout=15)
+        resp.raise_for_status()
         data = resp.json()
     except Exception as e:
         print(f"Error fetching Asia price: {e}")
@@ -208,9 +215,13 @@ def fetch_asia_price(region: str, nsuid: str, proxy) -> dict:
 def fetch_europe_price(region: str, nsuid: str, proxy) -> dict:
     try:
         session = create_session(proxy)
-        
-        api = f"https://api.ec.nintendo.com/v1/price?country={region.split('-')[-1].upper()}&lang={region.split('-')[0]}&ids={nsuid}"
-        resp = session.get(api)
+        params = {
+            "country": region.split('-')[-1].upper(),
+            "lang": region.split('-')[0],
+            "ids": nsuid
+        }
+        resp = session.get("https://api.ec.nintendo.com/v1/price", params=params, timeout=15)
+        resp.raise_for_status()
         data = resp.json()
     except Exception as e:
         print(f"Error fetching Europe price: {e}")

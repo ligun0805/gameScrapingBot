@@ -1,5 +1,6 @@
 import multiprocessing
 import requests
+import os
 from random import choice
 from requests.adapters import HTTPAdapter
 from utils import save_to_mongo, get_mongo_db, update_mongo, log_info, regions_steam
@@ -9,7 +10,9 @@ n_processes = 100  # Define number of processes
 STEAM_API_URL = "https://api.steampowered.com/ISteamApps/GetAppList/v2/"
 
 # Load proxies efficiently
-with open("proxies.txt") as f:
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROXY_FILE = os.path.join(BASE_DIR, "proxies.txt")
+with open(PROXY_FILE, "r") as f:
     PROXIES = [line.strip() for line in f if line.strip()]
 proxy_pool = itertools.cycle(PROXIES)  # Efficient round-robin proxy cycling
 
@@ -34,24 +37,28 @@ def fetch_steam_apps(session):
         return []
 
 def fetch_steam_game_by_title(title: str, region: str = "ru") -> dict | None:
-    while True:
-        try:
-            proxy = choice(PROXIES)  # Randomly select a proxy for each request
-            session = create_session(proxy)
-            apps = fetch_steam_apps(session)
-    
-            for app in apps:
-                if app['name'] == title:
-                    app_id = app['appid']
-                    game_data = fetch_game_details(app_id, session, region)
-    
-                    if "error" not in game_data:
-                        db = get_mongo_db()
-                        save_to_mongo(db, "steam_games", game_data)
-                        return game_data
-        except requests.RequestException as e:
-            print(f"Error fetching game by title: {e}")
-
+    """Fetch a single Steam game via Store Search API instead of full AppList scan."""
+    proxy = choice(PROXIES)
+    session = create_session(proxy)
+    try:
+        # Use the fast search endpoint for a single result
+        resp = session.get(
+            "https://store.steampowered.com/api/storesearch",
+            params={"term": title, "cc": region, "l": region, "count": 1},
+            timeout=10
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get("total", 0) == 0:
+            return None
+        app_id = data["items"][0]["id"]
+        game_data = fetch_game_details(app_id, session, region)
+        if "error" not in game_data:
+            db = get_mongo_db()
+            save_to_mongo(db, "steam_games", game_data)
+            return game_data
+    except requests.RequestException as e:
+        print(f"Error searching Steam: {e}")
     return None
 
 def fetch_game_details(app_id, session, region: str = "ru"):

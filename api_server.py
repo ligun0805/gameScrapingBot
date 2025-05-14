@@ -27,7 +27,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Load environment variables
 load_dotenv()
-app.config["MONGO_URI"] = os.getenv("MONGO_URI") + "test"
+app.config["MONGO_URI"] = os.getenv("MONGO_URI")
 
 # dotenv variables
 access_ip = os.getenv("access_ip", "127.0.0.1")
@@ -579,7 +579,7 @@ def fetch_logs():
         log_path = os.path.join(BASE_DIR, "scraper.log")
         if not os.path.exists(log_path):
             return jsonify({"msg": "Log file not found"}), 404
-        return send_file("scraper.log", mimetype="text/plain")
+        return send_file(log_path, mimetype="text/plain")
     except Exception as e:
         return jsonify({"msg": f"Error fetching logs: {e}"}), 500
 
@@ -666,7 +666,6 @@ def get_games():
         "games": games,
         "has_next": len(games) == per_page,
         "has_prev": page > 1,
-        "has_next": len(games) == per_page,
         "page": page,
         "per_page": per_page,
         "total": len(games)
