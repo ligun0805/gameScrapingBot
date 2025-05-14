@@ -41,24 +41,39 @@ def fetch_steam_game_by_title(title: str, region: str = "ru") -> dict | None:
     proxy = choice(PROXIES)
     session = create_session(proxy)
     try:
-        # Use the fast search endpoint for a single result
         resp = session.get(
             "https://store.steampowered.com/api/storesearch",
             params={"term": title, "cc": region, "l": region, "count": 1},
             timeout=10
         )
+        print("[Steam Debug] URL:", resp.url)
+        print("[Steam Debug] Status:", resp.status_code)
+        print("[Steam Debug] Body:", resp.text[:500])
+
         resp.raise_for_status()
         data = resp.json()
-        if data.get("total", 0) == 0:
+
+        items = data.get("items", [])
+        if not items:
+            print("[Steam Debug] No items found")
             return None
-        app_id = data["items"][0]["id"]
+
+        app_id = items[0].get("id")
+        if not app_id:
+            print("[Steam Debug] No app_id in first item")
+            return None
+
         game_data = fetch_game_details(app_id, session, region)
         if "error" not in game_data:
             db = get_mongo_db()
             save_to_mongo(db, "steam_games", game_data)
             return game_data
-    except requests.RequestException as e:
-        print(f"Error searching Steam: {e}")
+        else:
+            print("[Steam Debug] Game detail fetch error:", game_data["error"])
+
+    except Exception as e:
+        print(f"[Steam Error] {e}")
+
     return None
 
 def fetch_game_details(app_id, session, region: str = "ru"):
